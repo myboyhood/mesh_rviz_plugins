@@ -198,7 +198,14 @@ void TexturedMeshVisual::setShaderProgram(ShaderProgram shader_program) {
     auto fparams = pass->getFragmentProgramParameters();
     fparams->setNamedConstant("scene_color_scale", scene_color_scale_);
     fparams->setNamedConstant("phong_shading", phong_shading_ ? 1 : 0);
-    updateTexture(mesh_material_, tex_img_);
+    printf("Choose ShaderProgram::TEXTURE\n");
+//    updateTexture(mesh_material_, tex_img_); // origin directly updateTexture
+    // wzy change to check the img cols and rows
+    if(!mesh_material_.isNull() && tex_img_.cols > 0 && tex_img_.rows > 0){
+      updateTexture(mesh_material_, tex_img_);
+    }else{
+      printf("pass this Choose ShaderProgram::TEXTURE, wait for next matching!\n");
+    }
   } else if (shader_program_ == ShaderProgram::INVERSE_DEPTH) {
     pass->setFragmentProgram(idepth_shader_->getName());
     pass->removeAllTextureUnitStates();
@@ -231,11 +238,12 @@ void TexturedMeshVisual::setFromMessage(
     const pcl_msgs::PolygonMesh::ConstPtr& mesh_msg,
     const sensor_msgs::Image::ConstPtr& tex_msg) {
   std::lock_guard<std::mutex> lock(*getMutex());
-
+//  printf("[setFromMessage] start\n");
   ROS_DEBUG("Updating mesh!");
 
   if (mesh_msg->cloud.row_step !=
       mesh_msg->cloud.point_step * mesh_msg->cloud.width) {
+    printf("[setFromMessage] Row padding not supported!\n");
     ROS_WARN("Row padding not supported!\n");
     return;
   }
@@ -251,6 +259,12 @@ void TexturedMeshVisual::setFromMessage(
 
   mesh_->_setBounds(Ogre::AxisAlignedBox(-100, -100, -100, 100, 100, 100));
   mesh_->load();
+//  printf("[setFromMessage] Update mesh geometry finished!\n");
+  if(tex_msg != nullptr) {
+//    printf("[setFromMessage] tex_msg != nullptr! good\n");
+  }else{
+    printf("[setFromMessage] tex_msg == nullptr ...bad\n");
+  }
 
   /*==================== Update mesh texture. ====================*/
   if ((shader_program_ == ShaderProgram::TEXTURE) && (tex_msg != nullptr)) {
@@ -258,16 +272,19 @@ void TexturedMeshVisual::setFromMessage(
     try {
       tex_img_ = cv_bridge::toCvCopy(tex_msg, "rgb8")->image;
       if (tex_img_.rows != 0 && tex_img_.cols != 0) {
+//        printf("[setFromMessage] tex_img_.rows = %d, tex_img_.cols = %d\n", tex_img_.rows, tex_img_.cols);
         updateTexture(mesh_material_, tex_img_);
       } else {
         ROS_ERROR("ShaderProgram set to Texture, but texture image is empty.");
       }
     } catch (cv_bridge::Exception& e) {
+      printf("[setFromMessage] cv_bridge failed \n");
       ROS_ERROR("cv_bridge exception: %s", e.what());
       return;
     }
   } else if ((shader_program_ == ShaderProgram::TEXTURE) &&
              (tex_msg == nullptr)) {
+    printf("!!ShaderProgram set to TEXTURE, but texture message is NULL!");
     ROS_ERROR("ShaderProgram set to TEXTURE, but texture message is NULL!");
     return;
   }
@@ -402,19 +419,22 @@ void TexturedMeshVisual::updateTexture(const Ogre::MaterialPtr& material,
   ROS_ASSERT(tex_img.cols > 0);
   ROS_ASSERT(tex_img.rows > 0);
   Ogre::Image ogre_img;
+//  std::cout << "tex_img.cols: " << tex_img.cols << ", " << tex_img.rows << std::endl;
   ogre_img.loadDynamicImage(tex_img.data, tex_img.cols, tex_img.rows,
                             Ogre::PixelFormat::PF_B8G8R8);
-
+//  ROS_INFO("after loadDynamicImage with tex_img.\n");
   Ogre::String resource_group =
       Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME;
   Ogre::TextureManager* tex_man = Ogre::TextureManager::getSingletonPtr();
-
+//  printf("after resource_group and tex_man . tex_name_ = %s, resource_group = %s\n", tex_name_.c_str(), resource_group.c_str());
   Ogre::TexturePtr tex = tex_man->getByName(tex_name_, resource_group);
+//  printf("after tex_man->getByName\n");
   if (!tex.isNull()) {
     // Delete old texture.
     tex_man->remove(tex_name_);
   }
-
+//  ROS_INFO("before tex_man->loadImage.\n");
+//  std::cout << ogre_img.getHeight() << ", " << ogre_img.getWidth() << ", " << ogre_img.getNumMipmaps() << ", " << ogre_img.getSize() << ", " << ogre_img.getFormat() << std::endl;
   tex = tex_man->loadImage(tex_name_, resource_group, ogre_img);
 
   Ogre::Pass* pass = material->getTechnique(0)->getPass(0);
@@ -427,7 +447,7 @@ void TexturedMeshVisual::updateTexture(const Ogre::MaterialPtr& material,
   }
 
   tex_unit->setTexture(tex);
-
+//  ROS_INFO("after tex_unit->setTexture(tex).\n");
   return;
 }
 

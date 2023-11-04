@@ -434,6 +434,7 @@ void TexturedMeshDisplay::processPolygonMeshMessage(
   sensor_msgs::Image::ConstPtr tex_msg;
   // If not using texture, publish only 3D Mesh.
   if (!tex_filter_) {
+    ROS_INFO("publish only 3D Mesh\n");
     mesh_msg = mesh_queue_.front();
     mesh_queue_.pop();
     if (mesh_msg != nullptr) {
@@ -442,11 +443,14 @@ void TexturedMeshDisplay::processPolygonMeshMessage(
   } else {
     // Otherwise, if using texture
     // Synchronize and process the texture and mesh messages.
-    double tol = 5e-3;  // 5 ms tolerance.
+//    printf("Synchronize and process the texture and mesh messages, tex_queue_.size() = %zu, mesh_queue_.size() = %zu\n",tex_queue_.size(), mesh_queue_.size());
+//    double tol = 5e-3;  // 5 ms tolerance. origin
+    double tol = 5e-2;  // 50 ms tolerance. wzy change
     while ((tex_queue_.size() > 0) &&
            (mesh_queue_.size() > 0)) {
       double tex_time = tex_queue_.front()->header.stamp.toSec();
       double mesh_time = mesh_queue_.front()->header.stamp.toSec();
+//      printf("tex_time = %f, mesh_time = %f, diff = %f\n",tex_time, mesh_time, std::fabs(tex_time - mesh_time));
 
       if (std::fabs(tex_time - mesh_time) <= tol) {
         mesh_msg = mesh_queue_.front();
@@ -464,7 +468,7 @@ void TexturedMeshDisplay::processPolygonMeshMessage(
     }
 
     if ((mesh_msg != nullptr) && (tex_msg != nullptr)) {
-      ROS_DEBUG("Found a match!");
+//      printf("Found a match of mesh_msg and tex_msg!\n");
       processTexturedMeshMessages(mesh_msg, tex_msg);
     }
   }
@@ -483,7 +487,7 @@ void TexturedMeshDisplay::processTexturedMeshMessages(
   if (!mesh_msg) {
     return;
   }
-
+//  printf("before processTexturedMeshMessages  updateFixedFrameTransform\n");
   updateFixedFrameTransform(mesh_msg->header);
 
   num_meshes_received_++;
